@@ -19,6 +19,9 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
   final TextEditingController _endCtrl = TextEditingController();
 
   Map<String, dynamic>? _selectedLocData;
+  String _searchQuery = '';
+  DateTime? _filterDate;
+  String? _filterLocation;
 
   @override
   void dispose() {
@@ -30,12 +33,15 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
     super.dispose();
   }
 
-  void _showCreateClassDialog({String? docId, Map<String, dynamic>? existingData}) {
+  void _showCreateClassDialog({
+    String? docId,
+    Map<String, dynamic>? existingData,
+  }) {
     if (existingData != null) {
       _courseCtrl.text = existingData['kelas'] ?? '';
       _meetingCtrl.text = (existingData['pertemuan'] ?? '').toString();
       _dateCtrl.text = existingData['tanggal'] ?? '';
-      
+
       // Parse "08.00 - 10.00" back to start and end
       final jam = existingData['jam'] as String? ?? '';
       if (jam.contains(' - ')) {
@@ -43,7 +49,7 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
         _startCtrl.text = parts[0];
         _endCtrl.text = parts[1];
       }
-      
+
       _selectedLocData = {
         'tempat': existingData['tempat'],
         'latitude': existingData['latitude'],
@@ -229,15 +235,24 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
 
       if (docId == null) {
         classData['createdAt'] = FieldValue.serverTimestamp();
-        await _firestore.collection('kelas').add(classData).timeout(const Duration(seconds: 15));
+        await _firestore
+            .collection('kelas')
+            .add(classData)
+            .timeout(const Duration(seconds: 15));
       } else {
-        await _firestore.collection('kelas').doc(docId).update(classData).timeout(const Duration(seconds: 15));
+        await _firestore
+            .collection('kelas')
+            .doc(docId)
+            .update(classData)
+            .timeout(const Duration(seconds: 15));
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Class schedule ${docId == null ? 'published' : 'updated'} successfully!'),
+            content: Text(
+              'Class schedule ${docId == null ? 'published' : 'updated'} successfully!',
+            ),
             backgroundColor: Colors.black,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -347,6 +362,230 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
           },
         ),
       ],
+    );
+  }
+
+  void _showFilterDialog() {
+    String? tempLocation = _filterLocation;
+    DateTime? tempDate = _filterDate;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Filter Schedules',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Date',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () async {
+                        final DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: tempDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2101),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: Colors.black,
+                                  onPrimary: Colors.white,
+                                  onSurface: Colors.black,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setDialogState(() => tempDate = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                          color: const Color(0xFFF9F9F9),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              tempDate != null
+                                  ? "${tempDate!.year}-${tempDate!.month.toString().padLeft(2, '0')}-${tempDate!.day.toString().padLeft(2, '0')}"
+                                  : 'Select Date',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: tempDate != null
+                                    ? Colors.black
+                                    : Colors.grey.shade600,
+                              ),
+                            ),
+                            Icon(
+                              Icons.calendar_today_outlined,
+                              size: 18,
+                              color: Colors.grey.shade600,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Location',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _firestore.collection('lokasi').snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData)
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.black,
+                            ),
+                          );
+                        final locDocs = snapshot.data!.docs;
+                        final locs = locDocs
+                            .map((doc) {
+                              final d = doc.data() as Map<String, dynamic>;
+                              return (d['tempat'] ?? '') as String;
+                            })
+                            .where((l) => l.isNotEmpty)
+                            .toSet()
+                            .toList();
+
+                        return DropdownButtonFormField<String>(
+                          value: locs.contains(tempLocation)
+                              ? tempLocation
+                              : null,
+                          decoration: InputDecoration(
+                            hintText: 'All Locations',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Colors.black,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF9F9F9),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text('All Locations'),
+                            ),
+                            ...locs.map(
+                              (loc) => DropdownMenuItem<String>(
+                                value: loc,
+                                child: Text(loc),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            setDialogState(() => tempLocation = val);
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 16,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _filterDate = null;
+                      _filterLocation = null;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: Text(
+                    'Reset',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _filterDate = tempDate;
+                      _filterLocation = tempLocation;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Apply Filters',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -474,6 +713,11 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                         width: 320,
                         height: 44,
                         child: TextField(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value.toLowerCase();
+                            });
+                          },
                           decoration: InputDecoration(
                             hintText: 'Search schedules...',
                             hintStyle: TextStyle(
@@ -512,16 +756,22 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                       ),
                       const Spacer(),
                       OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(
+                        onPressed: _showFilterDialog,
+                        icon: Icon(
                           Icons.filter_list,
                           size: 18,
-                          color: Colors.black,
+                          color:
+                              (_filterDate != null || _filterLocation != null)
+                              ? Colors.blue.shade700
+                              : Colors.black,
                         ),
-                        label: const Text(
+                        label: Text(
                           'Filters',
                           style: TextStyle(
-                            color: Colors.black,
+                            color:
+                                (_filterDate != null || _filterLocation != null)
+                                ? Colors.blue.shade700
+                                : Colors.black,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -530,11 +780,19 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                             horizontal: 16,
                             vertical: 12,
                           ),
-                          side: BorderSide(color: Colors.grey.shade300),
+                          side: BorderSide(
+                            color:
+                                (_filterDate != null || _filterLocation != null)
+                                ? Colors.blue.shade300
+                                : Colors.grey.shade300,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          backgroundColor: Colors.white,
+                          backgroundColor:
+                              (_filterDate != null || _filterLocation != null)
+                              ? Colors.blue.shade50
+                              : Colors.white,
                         ),
                       ),
                     ],
@@ -587,7 +845,47 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                         );
                       }
 
-                      final docs = snapshot.data?.docs ?? [];
+                      var docs = snapshot.data?.docs ?? [];
+
+                      if (_searchQuery.isNotEmpty ||
+                          _filterDate != null ||
+                          _filterLocation != null) {
+                        docs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final courseName = (data['kelas']?.toString() ?? '')
+                              .toLowerCase();
+                          final tempat = (data['tempat']?.toString() ?? '')
+                              .toLowerCase();
+                          final tanggal = (data['tanggal']?.toString() ?? '')
+                              .toLowerCase();
+
+                          bool matchesSearch = true;
+                          if (_searchQuery.isNotEmpty) {
+                            matchesSearch =
+                                courseName.contains(_searchQuery) ||
+                                tempat.contains(_searchQuery) ||
+                                tanggal.contains(_searchQuery);
+                          }
+
+                          bool matchesDate = true;
+                          if (_filterDate != null) {
+                            final filterDateStr =
+                                "${_filterDate!.year}-${_filterDate!.month.toString().padLeft(2, '0')}-${_filterDate!.day.toString().padLeft(2, '0')}";
+                            matchesDate =
+                                tanggal == filterDateStr.toLowerCase();
+                          }
+
+                          bool matchesLocation = true;
+                          if (_filterLocation != null) {
+                            matchesLocation = data['tempat'] == _filterLocation;
+                          }
+
+                          return matchesSearch &&
+                              matchesDate &&
+                              matchesLocation;
+                        }).toList();
+                      }
+
                       if (docs.isEmpty) {
                         return const Center(
                           child: Padding(
@@ -738,7 +1036,10 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                                           size: 20,
                                           color: Colors.blueAccent,
                                         ),
-                                        onPressed: () => _showCreateClassDialog(docId: doc.id, existingData: data),
+                                        onPressed: () => _showCreateClassDialog(
+                                          docId: doc.id,
+                                          existingData: data,
+                                        ),
                                       ),
                                       IconButton(
                                         icon: const Icon(
@@ -746,7 +1047,10 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                                           size: 20,
                                           color: Colors.redAccent,
                                         ),
-                                        onPressed: () => _confirmDeleteClass(doc.id, data['kelas'] ?? 'this class'),
+                                        onPressed: () => _confirmDeleteClass(
+                                          doc.id,
+                                          data['kelas'] ?? 'this class',
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -766,6 +1070,7 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
       ],
     );
   }
+
   void _confirmDeleteClass(String id, String name) {
     showDialog(
       context: context,
@@ -773,7 +1078,10 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
         title: const Text('Delete Schedule'),
         content: Text('Delete schedule for $name?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               await _firestore.collection('kelas').doc(id).delete();

@@ -322,8 +322,11 @@ class _StudentViewState extends State<StudentView> {
                                   size: 18,
                                   color: Colors.blueAccent,
                                 ),
-                                onPressed: () =>
-                                    _showAddEditStudentDialog(context, docId: doc.id, existingData: data),
+                                onPressed: () => _showAddEditStudentDialog(
+                                  context,
+                                  docId: doc.id,
+                                  existingData: data,
+                                ),
                               ),
                               IconButton(
                                 icon: const Icon(
@@ -331,7 +334,8 @@ class _StudentViewState extends State<StudentView> {
                                   size: 18,
                                   color: Colors.redAccent,
                                 ),
-                                onPressed: () => _confirmDeleteStudent(doc.id, name),
+                                onPressed: () =>
+                                    _confirmDeleteStudent(doc.id, name),
                               ),
                             ],
                           ),
@@ -408,6 +412,8 @@ class _StudentViewState extends State<StudentView> {
     final kelas = userData['kelas'] ?? '-';
     final phone = userData['phone'] ?? '-';
     final gender = userData['gender'] ?? '-';
+    final email = userData['email'] ?? '-';
+    final birthDate = userData['birthDate'] ?? '-';
 
     showDialog(
       context: context,
@@ -481,6 +487,8 @@ class _StudentViewState extends State<StudentView> {
                 _infoItem('Kelas', kelas),
                 _infoItem('Phone', phone),
                 _infoItem('Gender', gender),
+                _infoItem('Email', email),
+                _infoItem('Birth Date', birthDate),
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFE0E0E0)),
                 const SizedBox(height: 16),
@@ -540,12 +548,20 @@ class _StudentViewState extends State<StudentView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Student'),
-        content: Text('Are you sure you want to delete $name? This action cannot be undone.'),
+        content: Text(
+          'Are you sure you want to delete $name? This action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
-              await FirebaseFirestore.instance.collection('users').doc(docId).delete();
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(docId)
+                  .delete();
               if (mounted) Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -555,13 +571,21 @@ class _StudentViewState extends State<StudentView> {
     );
   }
 
-  void _showAddEditStudentDialog(BuildContext context, {String? docId, Map<String, dynamic>? existingData}) {
+  void _showAddEditStudentDialog(
+    BuildContext context, {
+    String? docId,
+    Map<String, dynamic>? existingData,
+  }) {
     final nameCtrl = TextEditingController(text: existingData?['name']);
     final npmCtrl = TextEditingController(text: existingData?['npm']);
     final jurusanCtrl = TextEditingController(text: existingData?['jurusan']);
     final kelasCtrl = TextEditingController(text: existingData?['kelas']);
     final fakultasCtrl = TextEditingController(text: existingData?['fakultas']);
     final phoneCtrl = TextEditingController(text: existingData?['phone']);
+    final emailCtrl = TextEditingController(text: existingData?['email']);
+    final birthDateCtrl = TextEditingController(
+      text: existingData?['birthDate'],
+    );
 
     showDialog(
       context: context,
@@ -579,14 +603,22 @@ class _StudentViewState extends State<StudentView> {
                 _buildFormInput('Jurusan', jurusanCtrl),
                 _buildFormInput('Kelas', kelasCtrl),
                 _buildFormInput('Phone', phoneCtrl),
+                _buildFormInput('Email', emailCtrl),
+                _buildFormInput('Birth Date (YYYY-MM-DD)', birthDateCtrl),
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               final data = {
                 'name': nameCtrl.text,
@@ -595,6 +627,8 @@ class _StudentViewState extends State<StudentView> {
                 'jurusan': jurusanCtrl.text,
                 'kelas': kelasCtrl.text,
                 'phone': phoneCtrl.text,
+                'email': emailCtrl.text,
+                'birthDate': birthDateCtrl.text,
                 'updatedAt': FieldValue.serverTimestamp(),
               };
 
@@ -602,7 +636,10 @@ class _StudentViewState extends State<StudentView> {
                 data['createdAt'] = FieldValue.serverTimestamp();
                 await FirebaseFirestore.instance.collection('users').add(data);
               } else {
-                await FirebaseFirestore.instance.collection('users').doc(docId).update(data);
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(docId)
+                    .update(data);
               }
 
               if (context.mounted) Navigator.pop(context);
@@ -623,7 +660,10 @@ class _StudentViewState extends State<StudentView> {
           labelText: label,
           labelStyle: const TextStyle(fontSize: 13),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );

@@ -108,7 +108,7 @@ class _ReportsViewState extends State<ReportsView> {
                     [
                       'Attendance Log',
                       'Fraud Violations',
-                      'Missing/Absent Stats',
+                      'Pindah Kelas',
                       'Device Mapping',
                     ].map((v) {
                       return DropdownMenuItem(
@@ -343,6 +343,16 @@ class _ReportsViewState extends State<ReportsView> {
             ),
           ),
         ),
+        DataColumn(
+          label: Text(
+            'DEVICE NAME',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
       ];
       rowMapper = (docs) {
         return docs.map((doc) {
@@ -371,6 +381,103 @@ class _ReportsViewState extends State<ReportsView> {
                   ),
                 ),
               ),
+              DataCell(Text(data['deviceName'] ?? 'Unknown')),
+            ],
+          );
+        }).toList();
+      };
+    } else if (_reportType == 'Fraud Violations') {
+      // fraud_logs based report
+      query = _firestore
+          .collection('fraud_logs')
+          .orderBy('timestamp', descending: true);
+      columns = const [
+        DataColumn(
+          label: Text(
+            'STUDENT',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
+        DataColumn(
+          label: Text(
+            'CLASS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
+        DataColumn(
+          label: Text(
+            'FRAUD TYPE',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
+        DataColumn(
+          label: Text(
+            'TIMESTAMP',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
+      ];
+      rowMapper = (docs) {
+        return docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          String dateStr = '-';
+          if (data['timestamp'] != null) {
+            try {
+              dateStr = DateFormat(
+                'dd/MM/yy HH:mm',
+              ).format((data['timestamp'] as Timestamp).toDate());
+            } catch (_) {}
+          }
+          final fType = data['fraudType'] ?? 'unknown';
+          return DataRow(
+            cells: [
+              DataCell(
+                Text(
+                  data['userName'] ?? 'Unknown',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              DataCell(Text(data['className'] ?? '-')),
+              DataCell(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    fType.toString().toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFFB91C1C),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(Text(dateStr)),
             ],
           );
         }).toList();
@@ -381,11 +488,8 @@ class _ReportsViewState extends State<ReportsView> {
           .collection('presensi')
           .orderBy('timestamp', descending: true);
 
-      if (_reportType == 'Fraud Violations') {
-        // Assume 'alpa' or check-ins with notes are suspicious
-        baseQuery = baseQuery.where('status', isEqualTo: 'alpa');
-      } else if (_reportType == 'Missing/Absent Stats') {
-        baseQuery = baseQuery.where('status', isEqualTo: 'alpa');
+      if (_reportType == 'Pindah Kelas') {
+        baseQuery = baseQuery.where('status', isEqualTo: 'Pindah Kelas');
       }
 
       query = baseQuery;
@@ -413,6 +517,16 @@ class _ReportsViewState extends State<ReportsView> {
         DataColumn(
           label: Text(
             'STATUS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF585857),
+            ),
+          ),
+        ),
+        DataColumn(
+          label: Text(
+            'KETERANGAN',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -455,6 +569,7 @@ class _ReportsViewState extends State<ReportsView> {
               ),
               DataCell(Text(data['className'] ?? '-')),
               DataCell(_buildStatusBadge(data['status'] ?? '-')),
+              DataCell(Text(data['keterangan'] ?? '-')),
               DataCell(Text(dateStr)),
             ],
           );
@@ -472,6 +587,20 @@ class _ReportsViewState extends State<ReportsView> {
             padding: EdgeInsets.all(64.0),
             child: Center(
               child: CircularProgressIndicator(color: Colors.black),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(64.0),
+            child: Center(
+              child: SelectableText(
+                'Terjadi kesalahan saat memuat data: \n${snapshot.error}\n\n'
+                '(Jika pesan error mengandung link, copy-paste link tersebut ke browser untuk membuat Index Firestore yang dibutuhkan)',
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -564,6 +693,9 @@ class _ReportsViewState extends State<ReportsView> {
     } else if (status == 'alpa') {
       bgColor = const Color(0xFFFEE2E2);
       fgColor = const Color(0xFFB91C1C);
+    } else if (status == 'pindah kelas') {
+      bgColor = const Color(0xFFE0E7FF);
+      fgColor = const Color(0xFF4338CA);
     }
 
     return Container(
@@ -684,7 +816,7 @@ class _ReportsViewState extends State<ReportsView> {
     List<List<dynamic>> rows = [];
 
     if (_reportType == 'Device Mapping') {
-      rows.add(['STUDENT', 'NPM', 'DEVICE ID']);
+      rows.add(['STUDENT', 'NPM', 'DEVICE ID', 'DEVICE NAME']);
       final snapshot = await _firestore
           .collection('users')
           .orderBy('name')
@@ -695,18 +827,41 @@ class _ReportsViewState extends State<ReportsView> {
           data['name'] ?? 'Unknown',
           data['npm'] ?? '-',
           data['deviceId'] ?? 'Unbound',
+          data['deviceName'] ?? 'Unknown',
+        ]);
+      }
+    } else if (_reportType == 'Fraud Violations') {
+      rows.add(['STUDENT', 'CLASS', 'FRAUD TYPE', 'DESCRIPTION', 'TIMESTAMP']);
+      final snapshot = await _firestore
+          .collection('fraud_logs')
+          .orderBy('timestamp', descending: true)
+          .get();
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        String dateStr = '-';
+        if (data['timestamp'] != null) {
+          try {
+            dateStr = DateFormat(
+              'dd/MM/yy HH:mm',
+            ).format((data['timestamp'] as Timestamp).toDate());
+          } catch (_) {}
+        }
+        rows.add([
+          data['userName'] ?? 'Unknown',
+          data['className'] ?? '-',
+          data['fraudType'] ?? 'unknown',
+          data['description'] ?? '-',
+          dateStr,
         ]);
       }
     } else {
-      rows.add(['STUDENT', 'CLASS', 'STATUS', 'TIMESTAMP']);
+      rows.add(['STUDENT', 'CLASS', 'STATUS', 'KETERANGAN', 'TIMESTAMP']);
       var baseQuery = _firestore
           .collection('presensi')
           .orderBy('timestamp', descending: true);
 
-      if (_reportType == 'Fraud Violations') {
-        baseQuery = baseQuery.where('status', isEqualTo: 'alpa');
-      } else if (_reportType == 'Missing/Absent Stats') {
-        baseQuery = baseQuery.where('status', isEqualTo: 'alpa');
+      if (_reportType == 'Pindah Kelas') {
+        baseQuery = baseQuery.where('status', isEqualTo: 'Pindah Kelas');
       }
 
       final snapshot = await baseQuery.get();
@@ -724,6 +879,7 @@ class _ReportsViewState extends State<ReportsView> {
           data['userName'] ?? 'Unknown',
           data['className'] ?? '-',
           data['status'] ?? '-',
+          data['keterangan'] ?? '-',
           dateStr,
         ]);
       }

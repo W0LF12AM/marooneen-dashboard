@@ -173,22 +173,30 @@ class _AttendanceViewState extends State<AttendanceView> {
                 decoration: BoxDecoration(
                   border: Border.all(color: const Color(0xFFE0E0E0)),
                   borderRadius: BorderRadius.circular(8),
-                  color: _selectedDate == null ? const Color(0xFFF9F9F9) : Colors.black,
+                  color: _selectedDate == null
+                      ? const Color(0xFFF9F9F9)
+                      : Colors.black,
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.calendar_today_outlined,
                       size: 16,
-                      color: _selectedDate == null ? const Color(0xFF585857) : Colors.white,
+                      color: _selectedDate == null
+                          ? const Color(0xFF585857)
+                          : Colors.white,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _selectedDate == null ? 'Select Date' : DateFormat('MMM dd, yy').format(_selectedDate!),
+                      _selectedDate == null
+                          ? 'Select Date'
+                          : DateFormat('MMM dd, yy').format(_selectedDate!),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: _selectedDate == null ? const Color(0xFF585857) : Colors.white,
+                        color: _selectedDate == null
+                            ? const Color(0xFF585857)
+                            : Colors.white,
                       ),
                     ),
                   ],
@@ -211,9 +219,14 @@ class _AttendanceViewState extends State<AttendanceView> {
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
-                  items: ['All', 'Hadir', 'Izin', 'Sakit', 'Alpa'].map((String value) {
-                    return DropdownMenuItem<String>(value: value, child: Text(value));
-                  }).toList(),
+                  items: ['All', 'Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa'].map(
+                    (String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    },
+                  ).toList(),
                   onChanged: (newValue) {
                     setState(() {
                       _statusFilter = newValue!;
@@ -228,14 +241,24 @@ class _AttendanceViewState extends State<AttendanceView> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_searchQuery.isNotEmpty || _selectedDate != null || _statusFilter != 'All')
+            if (_searchQuery.isNotEmpty ||
+                _selectedDate != null ||
+                _statusFilter != 'All')
               TextButton(
                 onPressed: _clearFilters,
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF585857)),
-                child: const Text('Clear Filters', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF585857),
+                ),
+                child: const Text(
+                  'Clear Filters',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
               ),
             const SizedBox(width: 8),
-            const Text('Show:', style: TextStyle(fontSize: 13, color: Color(0xFF585857))),
+            const Text(
+              'Show:',
+              style: TextStyle(fontSize: 13, color: Color(0xFF585857)),
+            ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -250,7 +273,13 @@ class _AttendanceViewState extends State<AttendanceView> {
                   items: [10, 25, 50].map((v) {
                     return DropdownMenuItem(
                       value: v,
-                      child: Text('$v', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        '$v',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (v) => setState(() => _rowsPerPage = v!),
@@ -265,12 +294,17 @@ class _AttendanceViewState extends State<AttendanceView> {
 
   Widget _buildAttendanceTable() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('presensi').orderBy('timestamp', descending: true).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('presensi')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.all(64.0),
-            child: Center(child: CircularProgressIndicator(color: Colors.black)),
+            child: Center(
+              child: CircularProgressIndicator(color: Colors.black),
+            ),
           );
         }
 
@@ -281,7 +315,8 @@ class _AttendanceViewState extends State<AttendanceView> {
           if (_searchQuery.isNotEmpty) {
             final name = (data['userName'] ?? '').toString().toLowerCase();
             final npm = (data['userNpm'] ?? '').toString().toLowerCase();
-            if (!name.contains(_searchQuery) && !npm.contains(_searchQuery)) return false;
+            if (!name.contains(_searchQuery) && !npm.contains(_searchQuery))
+              return false;
           }
           if (_statusFilter != 'All') {
             final status = (data['status'] ?? '').toString().toLowerCase();
@@ -290,7 +325,10 @@ class _AttendanceViewState extends State<AttendanceView> {
           if (_selectedDate != null && data['timestamp'] != null) {
             try {
               final date = (data['timestamp'] as Timestamp).toDate();
-              if (date.year != _selectedDate!.year || date.month != _selectedDate!.month || date.day != _selectedDate!.day) return false;
+              if (date.year != _selectedDate!.year ||
+                  date.month != _selectedDate!.month ||
+                  date.day != _selectedDate!.day)
+                return false;
             } catch (_) {}
           }
           return true;
@@ -299,7 +337,12 @@ class _AttendanceViewState extends State<AttendanceView> {
         if (docs.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(64.0),
-            child: Center(child: Text('No attendance records found.', style: TextStyle(color: Color(0xFF585857)))),
+            child: Center(
+              child: Text(
+                'No attendance records found.',
+                style: TextStyle(color: Color(0xFF585857)),
+              ),
+            ),
           );
         }
 
@@ -321,7 +364,9 @@ class _AttendanceViewState extends State<AttendanceView> {
               data: Theme.of(context).copyWith(
                 dividerColor: const Color(0xFFE0E0E0),
                 dataTableTheme: DataTableThemeData(
-                  headingRowColor: WidgetStateProperty.all(const Color(0xFFFBFBFB)),
+                  headingRowColor: WidgetStateProperty.all(
+                    const Color(0xFFFBFBFB),
+                  ),
                 ),
               ),
               child: SizedBox(
@@ -333,42 +378,120 @@ class _AttendanceViewState extends State<AttendanceView> {
                   dataRowMaxHeight: 76,
                   dataRowMinHeight: 76,
                   columns: const [
-                    DataColumn(label: Text('EMPLOYEE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF585857)))),
-                    DataColumn(label: Text('CLASS / LOC', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF585857)))),
-                    DataColumn(label: Text('STATUS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF585857)))),
-                    DataColumn(label: Text('ACTIONS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF585857)))),
+                    DataColumn(
+                      label: Text(
+                        'STUDENT',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF585857),
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'CLASS / LOC',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF585857),
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'STATUS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF585857),
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'ACTIONS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF585857),
+                        ),
+                      ),
+                    ),
                   ],
                   rows: pagedDocs.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     String timeStr = '-';
                     if (data['timestamp'] != null) {
                       try {
-                        timeStr = DateFormat('dd/MM HH:mm').format((data['timestamp'] as Timestamp).toDate());
+                        timeStr = DateFormat(
+                          'dd/MM HH:mm',
+                        ).format((data['timestamp'] as Timestamp).toDate());
                       } catch (_) {}
                     }
                     return DataRow(
                       cells: [
-                        DataCell(Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(data['userName'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black)),
-                            Text(data['userNpm'] ?? '-', style: const TextStyle(color: Color(0xFF585857), fontSize: 11)),
-                          ],
-                        )),
-                        DataCell(Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(data['className'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w500)),
-                            Text(timeStr, style: const TextStyle(color: Color(0xFF585857), fontSize: 11)),
-                          ],
-                        )),
+                        DataCell(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                data['userName'] ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                data['userNpm'] ?? '-',
+                                style: const TextStyle(
+                                  color: Color(0xFF585857),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        DataCell(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                data['className'] ?? '-',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                timeStr,
+                                style: const TextStyle(
+                                  color: Color(0xFF585857),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         DataCell(_buildStatusBadge(data['status'] ?? 'Hadir')),
-                        DataCell(InkWell(
-                          onTap: () => _openManualAdjustmentModal(context, data, doc.id),
-                          child: const Text('Adjust', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline)),
-                        )),
+                        DataCell(
+                          InkWell(
+                            onTap: () => _openManualAdjustmentModal(
+                              context,
+                              data,
+                              doc.id,
+                            ),
+                            child: const Text(
+                              'Adjust',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     );
                   }).toList(),
@@ -382,14 +505,24 @@ class _AttendanceViewState extends State<AttendanceView> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+                    onPressed: _currentPage > 0
+                        ? () => setState(() => _currentPage--)
+                        : null,
                     icon: const Icon(Icons.chevron_left, size: 20),
                   ),
                   const SizedBox(width: 16),
-                  Text('Page ${_currentPage + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text(
+                    'Page ${_currentPage + 1}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                   const SizedBox(width: 16),
                   IconButton(
-                    onPressed: (_currentPage + 1) * _rowsPerPage < docs.length ? () => setState(() => _currentPage++) : null,
+                    onPressed: (_currentPage + 1) * _rowsPerPage < docs.length
+                        ? () => setState(() => _currentPage++)
+                        : null,
                     icon: const Icon(Icons.chevron_right, size: 20),
                   ),
                 ],
@@ -408,22 +541,46 @@ class _AttendanceViewState extends State<AttendanceView> {
     if (status == 'hadir') {
       bgColor = Colors.black;
       fgColor = Colors.white;
+    } else if (status == 'telat') {
+      bgColor = const Color(0xFFFFF3CD);
+      fgColor = const Color(0xFF92400E);
+    } else if (status == 'izin') {
+      bgColor = const Color(0xFFDBEAFE);
+      fgColor = const Color(0xFF1D4ED8);
+    } else if (status == 'sakit') {
+      bgColor = const Color(0xFFD1FAE5);
+      fgColor = const Color(0xFF065F46);
     } else if (status == 'alpa') {
       bgColor = const Color(0xFFFEE2E2);
       fgColor = const Color(0xFFB91C1C);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(4)),
-      child: Text(status.toUpperCase(), style: TextStyle(color: fgColor, fontSize: 10, fontWeight: FontWeight.bold)),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          color: fgColor,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
-  void _openManualAdjustmentModal(BuildContext context, Map<String, dynamic> record, String docId) {
+  void _openManualAdjustmentModal(
+    BuildContext context,
+    Map<String, dynamic> record,
+    String docId,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) => _ManualAdjustmentModal(recordData: record, docId: docId),
+      builder: (BuildContext context) =>
+          _ManualAdjustmentModal(recordData: record, docId: docId),
     );
   }
 }
@@ -446,7 +603,10 @@ class _ManualAdjustmentModalState extends State<_ManualAdjustmentModal> {
   void initState() {
     super.initState();
     String existingStatus = widget.recordData['status'] ?? 'Hadir';
-    _selectedStatus = existingStatus.isNotEmpty ? existingStatus[0].toUpperCase() + existingStatus.substring(1).toLowerCase() : 'Hadir';
+    _selectedStatus = existingStatus.isNotEmpty
+        ? existingStatus[0].toUpperCase() +
+              existingStatus.substring(1).toLowerCase()
+        : 'Hadir';
     _notesController.text = widget.recordData['notes'] ?? '';
   }
 
@@ -470,23 +630,37 @@ class _ManualAdjustmentModalState extends State<_ManualAdjustmentModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Adjust Attendance', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                const Text(
+                  'Adjust Attendance',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ],
             ),
             const SizedBox(height: 24),
-            Text('Mahasiswa: ${widget.recordData['userName']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Mahasiswa: ${widget.recordData['userName']}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             const Text('STATUS', style: TextStyle(fontSize: 12)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE0E0E0)), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedStatus,
                   isExpanded: true,
-                  items: ['Hadir', 'Izin', 'Sakit', 'Alpa'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+                  items: ['Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa']
+                      .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                      .toList(),
                   onChanged: (v) => setState(() => _selectedStatus = v!),
                 ),
               ),
@@ -497,18 +671,42 @@ class _ManualAdjustmentModalState extends State<_ManualAdjustmentModal> {
             TextFormField(
               controller: _notesController,
               maxLines: 3,
-              decoration: InputDecoration(hintText: 'Provide a reason...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              decoration: InputDecoration(
+                hintText: 'Provide a reason...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
             ),
             const SizedBox(height: 32),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
                 const SizedBox(width: 16),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _saveAdjustment,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
-                  child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Save Changes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Save Changes'),
                 ),
               ],
             ),
@@ -521,13 +719,17 @@ class _ManualAdjustmentModalState extends State<_ManualAdjustmentModal> {
   Future<void> _saveAdjustment() async {
     setState(() => _isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('presensi').doc(widget.docId).update({
-        'status': _selectedStatus.toLowerCase(),
-        'notes': _notesController.text,
-        'adjustedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('presensi')
+          .doc(widget.docId)
+          .update({
+            'status': _selectedStatus.toLowerCase(),
+            'notes': _notesController.text,
+            'adjustedAt': FieldValue.serverTimestamp(),
+          });
       if (mounted) Navigator.pop(context);
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }

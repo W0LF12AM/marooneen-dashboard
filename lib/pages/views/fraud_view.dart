@@ -620,181 +620,343 @@ class _FraudViewState extends State<FraudView> {
   }
 
   Widget _buildMapVisualization() {
-    return Container(
-      height: 400,
-      margin: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9F9F9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Stack(
-        children: [
-          // Background Grid Simulation
-          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('lokasi').snapshots(),
+      builder: (context, locSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firestore
+              .collection('fraud_logs')
+              .orderBy('timestamp', descending: true)
+              .limit(20)
+              .snapshots(),
+          builder: (context, fraudSnapshot) {
+            final locDocs = locSnapshot.data?.docs ?? [];
+            final fraudDocs = fraudSnapshot.data?.docs ?? [];
 
-          // Mock Data points
-          _buildMapPin(
-            top: 80,
-            left: 120,
-            label: 'Central Hub',
-            color: Colors.black,
-          ),
-          _buildMapPin(
-            top: 150,
-            left: 240,
-            label: 'Approved Zone',
-            color: const Color(0xFF585857),
-            size: 8,
-          ),
-          _buildMapPin(
-            top: 220,
-            left: 180,
-            label: 'Approved Zone',
-            color: const Color(0xFF585857),
-            size: 8,
-          ),
+            // Collect all points with valid coords
+            final List<_MapPoint> points = [];
 
-          // Out of radius Anomaly Pin
-          Positioned(
-            bottom: 60,
-            right: 80,
-            child: _buildRadarRipple(
-              child: _buildMapPin(
-                top: 0,
-                left: 0,
-                label: 'Out of Radius\n(Unknown User)',
-                color: Colors.black,
-                isAlert: true,
-              ),
-            ),
-          ),
+            for (final doc in locDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final lat = (data['latitude'] as num?)?.toDouble();
+              final lng = (data['longitude'] as num?)?.toDouble();
+              if (lat != null && lng != null) {
+                points.add(
+                  _MapPoint(
+                    lat: lat,
+                    lng: lng,
+                    label: data['tempat'] ?? 'Location',
+                    radius: (data['radius'] as num?)?.toDouble() ?? 100,
+                    isAlert: false,
+                  ),
+                );
+              }
+            }
 
-          // Map Controls Placeholder
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: Container(
+            for (final doc in fraudDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final lat = (data['latitude'] as num?)?.toDouble();
+              final lng = (data['longitude'] as num?)?.toDouble();
+              if (lat != null && lng != null) {
+                points.add(
+                  _MapPoint(
+                    lat: lat,
+                    lng: lng,
+                    label: data['userName'] ?? 'Unknown',
+                    radius: 0,
+                    isAlert: true,
+                    sub: _getFraudTypeLabel(data['fraudType'] ?? 'fraud'),
+                  ),
+                );
+              }
+            }
+
+            return Container(
+              height: 400,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFF2F2F2),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFE0E0E0)),
               ),
-              child: Column(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.add, color: Colors.black, size: 20),
-                    onPressed: () {},
-                  ),
-                  const Divider(height: 1, color: Color(0xFFE0E0E0)),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.remove,
-                      color: Colors.black,
-                      size: 20,
+              child: points.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.map_outlined,
+                            size: 48,
+                            color: Color(0xFFCCCCCC),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'No location data to display.\nAdd locations in the Geofences section below.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF585857),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        const h = 400.0;
+                        const pad = 60.0;
+
+                        double minLat = points
+                            .map((p) => p.lat)
+                            .reduce((a, b) => a < b ? a : b);
+                        double maxLat = points
+                            .map((p) => p.lat)
+                            .reduce((a, b) => a > b ? a : b);
+                        double minLng = points
+                            .map((p) => p.lng)
+                            .reduce((a, b) => a < b ? a : b);
+                        double maxLng = points
+                            .map((p) => p.lng)
+                            .reduce((a, b) => a > b ? a : b);
+
+                        // Add padding so single-point doesn't collapse
+                        const coordPad = 0.0005;
+                        minLat -= coordPad;
+                        maxLat += coordPad;
+                        minLng -= coordPad;
+                        maxLng += coordPad;
+
+                        double px(double lng) {
+                          if (maxLng == minLng) return w / 2;
+                          return pad +
+                              ((lng - minLng) / (maxLng - minLng)) *
+                                  (w - pad * 2);
+                        }
+
+                        double py(double lat) {
+                          if (maxLat == minLat) return h / 2;
+                          return pad +
+                              (1 - (lat - minLat) / (maxLat - minLat)) *
+                                  (h - pad * 2);
+                        }
+
+                        double approxRadius(double radiusM) {
+                          const metersPerDeg = 111320.0;
+                          final lngRange = maxLng - minLng;
+                          if (lngRange <= 0) return 30;
+                          final radiusDeg = radiusM / metersPerDeg;
+                          final pxPerDeg = (w - pad * 2) / lngRange;
+                          return (radiusDeg * pxPerDeg).clamp(16.0, 140.0);
+                        }
+
+                        final List<Widget> pins = [];
+
+                        // Geofence circles under the pins (non-alert)
+                        for (final p in points.where(
+                          (p) => !p.isAlert && p.radius > 0,
+                        )) {
+                          final cx = px(p.lng);
+                          final cy = py(p.lat);
+                          final r = approxRadius(p.radius);
+                          pins.add(
+                            Positioned(
+                              left: cx - r,
+                              top: cy - r,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: r * 2,
+                                  height: r * 2,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black.withOpacity(0.06),
+                                    border: Border.all(
+                                      color: Colors.black.withOpacity(0.35),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        // Location pins
+                        for (final p in points.where((p) => !p.isAlert)) {
+                          final cx = px(p.lng);
+                          final cy = py(p.lat);
+                          pins.add(
+                            Positioned(
+                              left: cx - 60,
+                              top: cy - 52,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 120,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      p.label,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.location_on,
+                                    color: Colors.black,
+                                    size: 22,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        // Fraud alert pins
+                        for (final p in points.where((p) => p.isAlert)) {
+                          final cx = px(p.lng);
+                          final cy = py(p.lat);
+                          pins.add(
+                            Positioned(
+                              left: cx - 65,
+                              top: cy - 58,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 130,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFCC0000),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          p.label,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        if (p.sub != null)
+                                          Text(
+                                            p.sub!,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 8,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.warning_rounded,
+                                    color: Color(0xFFCC0000),
+                                    size: 22,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: CustomPaint(painter: _GridPainter()),
+                            ),
+                            ...pins,
+                            // Legend
+                            Positioned(
+                              left: 12,
+                              bottom: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.92),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFFE0E0E0),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.location_on,
+                                      color: Colors.black,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Geofence',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.warning_rounded,
+                                      color: Color(0xFFCC0000),
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Fraud Alert',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Color(0xFFCC0000),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRadarRipple({required Widget child}) {
-    // Usually uses AnimationController, wrapping in a stylized pulsing red shade container
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.redAccent.withAlpha(20), // 0x33 or similar transparency
-        border: Border.all(color: Colors.redAccent.withAlpha(100), width: 1),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildMapPin({
-    required double top,
-    required double left,
-    required String label,
-    required Color color,
-    double size = 12,
-    bool isAlert = false,
-  }) {
-    if (top == 0 && left == 0) {
-      // relative layout use case
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isAlert ? Colors.black : Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: isAlert ? Colors.black : const Color(0xFFE0E0E0),
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: isAlert ? Colors.white : Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Icon(
-            isAlert ? Icons.location_on : Icons.my_location,
-            color: color,
-            size: size * 2,
-          ),
-        ],
-      );
-    }
-
-    return Positioned(
-      top: top,
-      left: left,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: const Color(0xFFE0E0E0)),
-            ),
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Icon(Icons.my_location, color: color, size: size * 2),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildAnomalyAlertsStream() {
-    // Assuming potential "alerts" collection exists or derived from presensi querying 'isFraud' / anomalies
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
-          .collection('presensi')
+          .collection('fraud_logs')
           .orderBy('timestamp', descending: true)
-          .limit(10)
+          .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -806,30 +968,32 @@ class _FraudViewState extends State<FraudView> {
         if (snapshot.hasError) {
           return const Center(
             child: Text(
-              'Error analyzing data.',
+              'Error loading fraud data.',
               style: TextStyle(color: Color(0xFF585857)),
             ),
           );
         }
 
-        var docs = snapshot.data?.docs ?? [];
-
-        // For demonstration, we'll arbitrarily flag the first item or simulate filtering for anomalies.
-        // Replace 'isAnomaly' logic with actual backend checks (e.g., Fake GPS, Rooted, Out of radius).
-        var anomalyDocs = docs.where((doc) {
-          // If you have `isFraud` boolean:
-          // final data = doc.data() as Map<String, dynamic>;
-          // return data['isFraud'] == true || data['outOfRadius'] == true;
-          return true; // Mock displaying them as "recent checks evaluated"
-        }).toList();
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32.0),
-              child: Text(
-                'No anomalies detected today.',
-                style: TextStyle(color: Color(0xFF585857), fontSize: 13),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.gpp_good_outlined,
+                    size: 40,
+                    color: Color(0xFF585857),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'No anomalies detected.',
+                    style: TextStyle(color: Color(0xFF585857), fontSize: 13),
+                  ),
+                ],
               ),
             ),
           );
@@ -837,25 +1001,16 @@ class _FraudViewState extends State<FraudView> {
 
         return ListView.separated(
           padding: const EdgeInsets.all(24),
-          itemCount: anomalyDocs.length > 5
-              ? 5
-              : anomalyDocs.length, // Show up to 5 alerts
+          itemCount: docs.length,
           separatorBuilder: (context, index) =>
               const Divider(color: Color(0xFFE0E0E0), height: 32),
           itemBuilder: (context, index) {
-            final data = anomalyDocs[index].data() as Map<String, dynamic>;
-            final name = data['userName'] ?? 'Unknown Member';
-
-            // Simulating a specific anomaly type for UI richness
-            final anomalyTypes = [
-              'Out of Radius',
-              'Fake GPS Detected',
-              'Multiple Device Login',
-            ];
-            final String anomalyType = index < 2
-                ? anomalyTypes[index % 3]
-                : 'Verified OK';
-            final bool isThreat = index < 2; // Mock logic
+            final data = docs[index].data() as Map<String, dynamic>;
+            final name = data['userName'] ?? 'Unknown';
+            final npm = data['userNpm'] ?? '';
+            final fraudType = data['fraudType'] ?? 'unknown';
+            final description = data['description'] ?? 'No details available.';
+            final className = data['className'] ?? '-';
 
             String timeStr = 'Just now';
             if (data['timestamp'] != null) {
@@ -865,23 +1020,21 @@ class _FraudViewState extends State<FraudView> {
               } catch (_) {}
             }
 
+            final String displayType = _getFraudTypeLabel(fraudType);
+
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isThreat
-                        ? const Color(0xFF232222)
-                        : const Color(0xFFF9F9F9),
+                    color: const Color(0xFF232222),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isThreat ? Colors.black : const Color(0xFFE0E0E0),
-                    ),
+                    border: Border.all(color: Colors.black),
                   ),
-                  child: Icon(
-                    isThreat ? Icons.warning_rounded : Icons.gpp_good_rounded,
-                    color: isThreat ? Colors.white : const Color(0xFF585857),
+                  child: const Icon(
+                    Icons.warning_rounded,
+                    color: Colors.white,
                     size: 16,
                   ),
                 ),
@@ -894,13 +1047,11 @@ class _FraudViewState extends State<FraudView> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            anomalyType,
-                            style: TextStyle(
+                            displayType,
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: isThreat
-                                  ? Colors.black
-                                  : const Color(0xFF585857),
-                              fontSize: 14,
+                              color: Colors.black,
+                              fontSize: 13,
                             ),
                           ),
                           Text(
@@ -912,29 +1063,32 @@ class _FraudViewState extends State<FraudView> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
-                        'Account: $name',
+                        '$name${npm.isNotEmpty ? ' · $npm' : ''}',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF585857),
                         ),
                       ),
-                      if (isThreat)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: InkWell(
-                            onTap: () {},
-                            child: const Text(
-                              'Review Details →',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
+                      const SizedBox(height: 3),
+                      Text(
+                        className,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF585857),
                         ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF585857),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -946,12 +1100,27 @@ class _FraudViewState extends State<FraudView> {
     );
   }
 
+  String _getFraudTypeLabel(String fraudType) {
+    switch (fraudType.toLowerCase()) {
+      case 'fake_gps':
+        return 'Fake GPS Detected';
+      case 'out_of_radius':
+        return 'Out of Radius';
+      case 'rooted_device':
+        return 'Rooted Device';
+      case 'multiple_login':
+        return 'Multiple Device Login';
+      default:
+        return fraudType.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
   Widget _buildHistoricalLogs() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
-          .collection('presensi')
+          .collection('fraud_logs')
           .orderBy('timestamp', descending: true)
-          .limit(8)
+          .limit(20)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -963,14 +1132,25 @@ class _FraudViewState extends State<FraudView> {
           );
         }
 
-        var docs = snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(40.0),
             child: Center(
-              child: Text(
-                'No historical logs found.',
-                style: TextStyle(color: Color(0xFF585857)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 40,
+                    color: Color(0xFF585857),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'No fraud logs found.',
+                    style: TextStyle(color: Color(0xFF585857)),
+                  ),
+                ],
               ),
             ),
           );
@@ -997,11 +1177,11 @@ class _FraudViewState extends State<FraudView> {
               columnSpacing: 24,
               headingRowHeight: 56,
               dataRowMinHeight: 70,
-              dataRowMaxHeight: 70,
+              dataRowMaxHeight: 80,
               columns: const [
                 DataColumn(
                   label: Text(
-                    'EMPLOYEE',
+                    'STUDENT',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1012,7 +1192,7 @@ class _FraudViewState extends State<FraudView> {
                 ),
                 DataColumn(
                   label: Text(
-                    'DATE LOG',
+                    'CLASS',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1023,7 +1203,7 @@ class _FraudViewState extends State<FraudView> {
                 ),
                 DataColumn(
                   label: Text(
-                    'LOCATION MATCH',
+                    'FRAUD TYPE',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1034,7 +1214,7 @@ class _FraudViewState extends State<FraudView> {
                 ),
                 DataColumn(
                   label: Text(
-                    'DEVICE METRICS',
+                    'DESCRIPTION',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1045,7 +1225,7 @@ class _FraudViewState extends State<FraudView> {
                 ),
                 DataColumn(
                   label: Text(
-                    'EVALUATION',
+                    'TIMESTAMP',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1057,7 +1237,11 @@ class _FraudViewState extends State<FraudView> {
               ],
               rows: docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final name = data['userName'] ?? 'Unknown Member';
+                final name = data['userName'] ?? 'Unknown';
+                final npm = data['userNpm'] ?? '';
+                final className = data['className'] ?? '-';
+                final fraudType = data['fraudType'] ?? 'unknown';
+                final description = data['description'] ?? '-';
 
                 String dateStr = '-';
                 if (data['timestamp'] != null) {
@@ -1068,53 +1252,42 @@ class _FraudViewState extends State<FraudView> {
                   } catch (_) {}
                 }
 
-                // Simulating evaluations based on arbitrary metric
-                bool isClean = name.toString().length % 2 == 0;
+                final displayType = _getFraudTypeLabel(fraudType);
 
                 return DataRow(
                   cells: [
                     DataCell(
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (npm.isNotEmpty)
+                            Text(
+                              npm,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF585857),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     DataCell(
                       Text(
-                        dateStr,
+                        className,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
                           color: Color(0xFF585857),
                         ),
-                      ),
-                    ),
-                    DataCell(
-                      Text(
-                        isClean ? 'Radius Match' : 'Out of Bounds',
-                        style: TextStyle(
-                          color: isClean
-                              ? const Color(0xFF585857)
-                              : Colors.black,
-                          fontWeight: isClean
-                              ? FontWeight.w500
-                              : FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    DataCell(
-                      Text(
-                        isClean ? 'Verified' : 'Fake GPS Risk',
-                        style: TextStyle(
-                          color: isClean
-                              ? const Color(0xFF585857)
-                              : Colors.black,
-                          fontWeight: isClean
-                              ? FontWeight.w500
-                              : FontWeight.bold,
-                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     DataCell(
@@ -1124,26 +1297,42 @@ class _FraudViewState extends State<FraudView> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: isClean
-                              ? const Color(0xFFF4F4F4)
-                              : Colors.black,
+                          color: Colors.black,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: isClean
-                                ? const Color(0xFFE0E0E0)
-                                : Colors.black,
-                          ),
                         ),
                         child: Text(
-                          isClean ? 'PASSED' : 'FLAGGED',
-                          style: TextStyle(
-                            color: isClean
-                                ? const Color(0xFF585857)
-                                : Colors.white,
+                          displayType,
+                          style: const TextStyle(
+                            color: Colors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                            letterSpacing: 0.3,
                           ),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 200,
+                        child: Text(
+                          description,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF585857),
+                            fontStyle: FontStyle.italic,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        dateStr,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                          color: Color(0xFF585857),
                         ),
                       ),
                     ),
@@ -1181,24 +1370,37 @@ class _FraudViewState extends State<FraudView> {
   }
 }
 
-// Custom Painter to draw a minimalist grid matching the aesthetic
+class _MapPoint {
+  final double lat;
+  final double lng;
+  final String label;
+  final double radius;
+  final bool isAlert;
+  final String? sub;
+
+  const _MapPoint({
+    required this.lat,
+    required this.lng,
+    required this.label,
+    required this.radius,
+    required this.isAlert,
+    this.sub,
+  });
+}
+
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFE0E0E0).withAlpha(100)
-      ..strokeWidth = 1.0;
+      ..color = const Color(0xFFE0E0E0)
+      ..strokeWidth = 0.8;
 
     const double spacing = 40.0;
-
-    // Draw vertical lines
-    for (double i = 0; i < size.width; i += spacing) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-
-    // Draw horizontal lines
-    for (double j = 0; j < size.height; j += spacing) {
-      canvas.drawLine(Offset(0, j), Offset(size.width, j), paint);
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 

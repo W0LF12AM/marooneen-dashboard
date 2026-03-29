@@ -37,10 +37,13 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
     String? docId,
     Map<String, dynamic>? existingData,
   }) {
+    String localClassType = 'Offline';
+
     if (existingData != null) {
       _courseCtrl.text = existingData['kelas'] ?? '';
       _meetingCtrl.text = (existingData['pertemuan'] ?? '').toString();
       _dateCtrl.text = existingData['tanggal'] ?? '';
+      localClassType = existingData['tipe_kelas'] ?? 'Offline';
 
       // Parse "08.00 - 10.00" back to start and end
       final jam = existingData['jam'] as String? ?? '';
@@ -68,142 +71,202 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Create New Class',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: SizedBox(
-            width: 500,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTextField(
-                    'Course Name',
-                    'e.g., Software Engineering',
-                    _courseCtrl,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Create New Class',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildTextField(
-                          'Meeting Number',
-                          'e.g., 1',
-                          _meetingCtrl,
+                      _buildTextField(
+                        'Course Name',
+                        'e.g., Software Engineering',
+                        _courseCtrl,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              'Meeting Number',
+                              'e.g., 1',
+                              _meetingCtrl,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              'Date',
+                              'YYYY-MM-DD',
+                              _dateCtrl,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              'Start Time',
+                              '08.00',
+                              _startCtrl,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              'End Time',
+                              '10.00',
+                              _endCtrl,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Class Type',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildTextField('Date', 'YYYY-MM-DD', _dateCtrl),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          'Start Time',
-                          '08.00',
-                          _startCtrl,
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: localClassType,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF9F9F9),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
                         ),
+                        items: ['Online', 'Offline']
+                            .map(
+                              (v) => DropdownMenuItem(value: v, child: Text(v)),
+                            )
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => localClassType = val);
+                          }
+                        },
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildTextField('End Time', '10.00', _endCtrl),
-                      ),
+                      const SizedBox(height: 16),
+                      if (localClassType == 'Offline') _buildLocationDropdown(),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildLocationDropdown(),
-                ],
-              ),
-            ),
-          ),
-          actionsPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 16,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (_courseCtrl.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a course name')),
-                  );
-                  return;
-                }
-                if (_selectedLocData == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select a location')),
-                  );
-                  return;
-                }
-
-                // Ambil data sebelum dialog di-pop
-                final String courseName = _courseCtrl.text;
-                final String meeting = _meetingCtrl.text;
-                final String date = _dateCtrl.text;
-                final String startTime = _startCtrl.text;
-                final String endTime = _endCtrl.text;
-                final Map<String, dynamic>? locData = _selectedLocData;
-
-                // 1. Pop dialog SEGERA
-                Navigator.pop(context);
-
-                // 2. Jalankan di background
-                _saveClassToFirestore(
-                  courseName,
-                  meeting,
-                  date,
-                  startTime,
-                  endTime,
-                  locData,
-                  docId: docId,
-                );
-
-                // 3. Bersihkan form hanya jika bukan sedang update, atau bersihkan selalu
-                _courseCtrl.clear();
-                _meetingCtrl.clear();
-                _dateCtrl.clear();
-                _startCtrl.clear();
-                _endCtrl.clear();
-                setState(() => _selectedLocData = null);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              actionsPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 16,
               ),
-              child: Text(
-                docId == null ? 'Publish Class' : 'Update Class',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_courseCtrl.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a course name'),
+                        ),
+                      );
+                      return;
+                    }
+                    if (localClassType == 'Offline' &&
+                        _selectedLocData == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please select a location for Offline class',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Ambil data sebelum dialog di-pop
+                    final String courseName = _courseCtrl.text;
+                    final String meeting = _meetingCtrl.text;
+                    final String date = _dateCtrl.text;
+                    final String startTime = _startCtrl.text;
+                    final String endTime = _endCtrl.text;
+                    final Map<String, dynamic>? locData =
+                        localClassType == 'Online' ? null : _selectedLocData;
+
+                    // 1. Pop dialog SEGERA
+                    Navigator.pop(context);
+
+                    // 2. Jalankan di background
+                    _saveClassToFirestore(
+                      courseName,
+                      meeting,
+                      date,
+                      startTime,
+                      endTime,
+                      locData,
+                      localClassType,
+                      docId: docId,
+                    );
+
+                    // 3. Bersihkan form hanya jika bukan sedang update, atau bersihkan selalu
+                    _courseCtrl.clear();
+                    _meetingCtrl.clear();
+                    _dateCtrl.clear();
+                    _startCtrl.clear();
+                    _endCtrl.clear();
+                    setState(() => _selectedLocData = null);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    docId == null ? 'Publish Class' : 'Update Class',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -215,7 +278,8 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
     String date,
     String startTime,
     String endTime,
-    Map<String, dynamic>? locData, {
+    Map<String, dynamic>? locData,
+    String classType, {
     String? docId,
   }) async {
     try {
@@ -226,6 +290,7 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
         'pertemuan': meeting,
         'tanggal': date,
         'jam': jamStr,
+        'tipe_kelas': classType,
         'tempat': locData?['tempat'],
         'latitude': locData?['latitude'],
         'longitude': locData?['longitude'],

@@ -219,14 +219,20 @@ class _AttendanceViewState extends State<AttendanceView> {
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
-                  items: ['All', 'Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa'].map(
-                    (String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    },
-                  ).toList(),
+                  items:
+                      [
+                        'All',
+                        'Hadir',
+                        'Telat',
+                        'Izin',
+                        'Sakit',
+                        'Pindah Kelas',
+                      ].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
                   onChanged: (newValue) {
                     setState(() {
                       _statusFilter = newValue!;
@@ -550,7 +556,7 @@ class _AttendanceViewState extends State<AttendanceView> {
     } else if (status == 'sakit') {
       bgColor = const Color(0xFFD1FAE5);
       fgColor = const Color(0xFF065F46);
-    } else if (status == 'alpa') {
+    } else if (status == 'pindah kelas') {
       bgColor = const Color(0xFFFEE2E2);
       fgColor = const Color(0xFFB91C1C);
     }
@@ -658,7 +664,7 @@ class _ManualAdjustmentModalState extends State<_ManualAdjustmentModal> {
                 child: DropdownButton<String>(
                   value: _selectedStatus,
                   isExpanded: true,
-                  items: ['Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa']
+                  items: ['Hadir', 'Telat', 'Izin', 'Sakit', 'Pindah Kelas']
                       .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedStatus = v!),

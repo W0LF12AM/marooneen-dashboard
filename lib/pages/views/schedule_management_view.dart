@@ -78,9 +78,9 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              title: const Text(
-                'Create New Class',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              title: Text(
+                docId != null ? 'Edit Class' : 'Create New Class',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               content: SizedBox(
                 width: 500,
@@ -110,6 +110,51 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
                               'Date',
                               'YYYY-MM-DD',
                               _dateCtrl,
+                              readOnly: true,
+                              suffixIcon: const Icon(
+                                Icons.calendar_today_outlined,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
+                              onTap: () async {
+                                DateTime initialDate = DateTime.now();
+                                if (_dateCtrl.text.isNotEmpty) {
+                                  try {
+                                    initialDate =
+                                        DateTime.parse(_dateCtrl.text);
+                                  } catch (_) {}
+                                }
+                                final DateTime? picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: initialDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2101),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: const ColorScheme.light(
+                                          primary: Colors.black,
+                                          onPrimary: Colors.white,
+                                          onSurface: Colors.black,
+                                        ),
+                                        textButtonTheme: TextButtonThemeData(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
+                                );
+                                if (picked != null) {
+                                  final formatted =
+                                      "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                                  setDialogState(() {
+                                    _dateCtrl.text = formatted;
+                                  });
+                                }
+                              },
                             ),
                           ),
                         ],
@@ -657,8 +702,11 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
   Widget _buildTextField(
     String label,
     String hint,
-    TextEditingController controller,
-  ) {
+    TextEditingController controller, {
+    bool readOnly = false,
+    VoidCallback? onTap,
+    Widget? suffixIcon,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -673,9 +721,12 @@ class _ScheduleManagementViewState extends State<ScheduleManagementView> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          readOnly: readOnly,
+          onTap: onTap,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            suffixIcon: suffixIcon,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,
